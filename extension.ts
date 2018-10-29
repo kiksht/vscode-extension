@@ -1,11 +1,22 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import {window, workspace, commands, Disposable, ExtensionContext, StatusBarAlignment, StatusBarItem, TextDocument} from 'vscode';
+import * as vscode from "vscode";
+import * as os from "os";
+import * as fs from "fs";
+import {
+    window,
+    workspace,
+    commands,
+    Disposable,
+    ExtensionContext,
+    StatusBarAlignment,
+    StatusBarItem,
+    TextDocument
+} from "vscode";
 
 // this method is called when your extension is activated. activation is
 // controlled by the activation events defined in package.json
 export function activate(ctx: ExtensionContext) {
-
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     // This line of code will only be executed once when your extension is activated
     console.log('Congratulations, your extension "Wordcount" is now active!');
@@ -18,18 +29,99 @@ export function activate(ctx: ExtensionContext) {
     // is deactivated again.
     ctx.subscriptions.push(controller);
     ctx.subscriptions.push(wordCounter);
+
+    const dict = JSON.parse(
+        fs.readFileSync("/Users/alex/src/kiksht/dictionary/data/dictionary.json", "utf-8")
+    );
+
+    vscode.languages.registerCompletionItemProvider("plaintext", {
+        provideCompletionItems(
+            document: vscode.TextDocument,
+            position: vscode.Position,
+            token: vscode.CancellationToken
+        ): vscode.CompletionItem[] | Thenable<vscode.CompletionItem[]> {
+            const items = Object.keys(dict).map(k => {
+                const v = dict[k];
+                console.log(v.root);
+
+                const ci = new vscode.CompletionItem(v.root);
+                ci.kind = vscode.CompletionItemKind.Text;
+
+                let defn = `${v.definition}\n\n`;
+                if (v.examples && v.examples.length > 0) {
+                    defn += `Examples:\n`;
+                    for (const ex of v.examples) {
+                        defn += `* ${ex.kiksht} | ${ex.english}\n`;
+                    }
+                }
+                ci.detail = `${v.root} [${v.partOfSpeech}]:`;
+                ci.documentation = defn;
+                return ci;
+            });
+
+            return items;
+        }
+
+        // resolveCompletionItem(
+        //     item: vscode.CompletionItem,
+        //     token: vscode.CancellationToken
+        // ): vscode.CompletionItem | Thenable<vscode.CompletionItem> {
+        //     return item;
+        // }
+    });
+
+    vscode.languages.registerHoverProvider("plaintext", {
+        provideHover(document, position, token) {
+            const w = currentWord(document, position);
+            const entry = dict[w];
+            if (entry !== undefined) {
+                let hover = `**${entry.root}** [_${entry.partOfSpeech}_]: ${entry.definition}\n\n`;
+                if (entry.examples && entry.examples.length > 0) {
+                    hover += `Examples:\n`;
+                    for (const ex of entry.examples) {
+                        hover += `* **_${ex.kiksht}_** | ${ex.english}\n`;
+                    }
+                }
+                return new vscode.Hover(hover);
+            }
+        }
+    });
+}
+
+function currentWord(document: vscode.TextDocument, position: vscode.Position): string | undefined {
+    const lines = document.getText().split(os.EOL);
+    let line = lines[position.line];
+
+    let pos = position.character;
+    let left = 0;
+    let right = 0;
+    while (true) {
+        if (line.length == 0) {
+            return;
+        }
+        right = line.search(" ");
+
+        if (right == -1) {
+            right = line.length;
+        }
+
+        if (left <= position.character && pos <= right) {
+            return line.substring(0, right);
+        }
+        pos = pos - right - 1;
+        left += right + 1;
+        line = line.substring(right + 1);
+    }
 }
 
 export class WordCounter {
-
     private _statusBarItem: StatusBarItem;
 
     public updateWordCount() {
-        
         // Create as needed
         if (!this._statusBarItem) {
             this._statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
-        } 
+        }
 
         // Get the current text editor
         let editor = window.activeTextEditor;
@@ -45,7 +137,8 @@ export class WordCounter {
             let wordCount = this._getWordCount(doc);
 
             // Update the status bar
-            this._statusBarItem.text = wordCount !== 1 ? `$(pencil) ${wordCount} Words` : '$(pencil) 1 Word';
+            this._statusBarItem.text =
+                wordCount !== 1 ? `$(pencil) ${wordCount} Words` : "$(pencil) 1 Word";
             this._statusBarItem.show();
         } else {
             this._statusBarItem.hide();
@@ -56,8 +149,8 @@ export class WordCounter {
         let docContent = doc.getText();
 
         // Parse out unwanted whitespace so the split is accurate
-        docContent = docContent.replace(/(< ([^>]+)<)/g, '').replace(/\s+/g, ' ');
-        docContent = docContent.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
+        docContent = docContent.replace(/(< ([^>]+)<)/g, "").replace(/\s+/g, " ");
+        docContent = docContent.replace(/^\s\s*/, "").replace(/\s\s*$/, "");
         let wordCount = 0;
         if (docContent != "") {
             wordCount = docContent.split(" ").length;
@@ -72,7 +165,6 @@ export class WordCounter {
 }
 
 class WordCounterController {
-
     private _wordCounter: WordCounter;
     private _disposable: Disposable;
 
