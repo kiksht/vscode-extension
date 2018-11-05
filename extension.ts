@@ -40,12 +40,12 @@ export function activate(ctx: ExtensionContext) {
             position: vscode.Position,
             token: vscode.CancellationToken
         ): vscode.CompletionItem[] | Thenable<vscode.CompletionItem[]> {
+            const forms = [];
             const items = Object.keys(dict).map(k => {
                 const v = dict[k];
-                console.log(v.root);
 
                 const ci = new vscode.CompletionItem(v.root);
-                ci.kind = vscode.CompletionItemKind.Text;
+                ci.kind = vscode.CompletionItemKind.Class;
 
                 let defn = `${v.definition}\n\n`;
                 if (v.examples && v.examples.length > 0) {
@@ -56,10 +56,31 @@ export function activate(ctx: ExtensionContext) {
                 }
                 ci.detail = `${v.root} [${v.partOfSpeech}]:`;
                 ci.documentation = defn;
+
+                if (v["forms"] !== undefined) {
+                    v["forms"].forEach(({ kiksht, english }) => {
+                        const formCi = new vscode.CompletionItem(kiksht);
+                        formCi.kind = vscode.CompletionItemKind.Interface;
+
+                        formCi.detail = `${kiksht} [${v.partOfSpeech}]:`;
+                        let defn = `${english}\n\nForm of: ${v.root} [${v.partOfSpeech}]: ${
+                            v.definition
+                        }\n\n`;
+                        if (v.examples && v.examples.length > 0) {
+                            defn += `Examples:\n`;
+                            for (const ex of v.examples) {
+                                defn += `* ${ex.kiksht} | ${ex.english}\n`;
+                            }
+                        }
+                        formCi.documentation = defn;
+                        forms.push(formCi);
+                    });
+                }
+
                 return ci;
             });
 
-            return items;
+            return items.concat(forms);
         }
 
         // resolveCompletionItem(
@@ -83,6 +104,30 @@ export function activate(ctx: ExtensionContext) {
                     }
                 }
                 return new vscode.Hover(hover);
+            }
+
+            for (const k of Object.keys(dict)) {
+                const v = dict[k];
+                if (v["forms"] !== undefined) {
+                    console.log(v["forms"]);
+                    for (const { kiksht, english } of v["forms"]) {
+                        console.log(`'${kiksht}' '${w}' ${kiksht === w}`);
+                        if (kiksht === w) {
+                            let hover = `**${kiksht}** [_${
+                                v.partOfSpeech
+                            }_]: ${english}\n\nForm of: **${v.root}** [_${v.partOfSpeech}_]: ${
+                                v.definition
+                            }\n\n`;
+                            if (v.examples && v.examples.length > 0) {
+                                hover += `Examples:\n`;
+                                for (const ex of v.examples) {
+                                    hover += `* **_${ex.kiksht}_** | ${ex.english}\n`;
+                                }
+                            }
+                            return new vscode.Hover(hover);
+                        }
+                    }
+                }
             }
         }
     });
