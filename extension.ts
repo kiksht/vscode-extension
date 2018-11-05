@@ -14,6 +14,8 @@ import {
     TextDocument
 } from "vscode";
 
+const punctWordBoundary = /\b[-.,()&$#!\[\]{}"']+\B|\B[-.,()&$#!\[\]{}"']+\b/g;
+
 // this method is called when your extension is activated. activation is
 // controlled by the activation events defined in package.json
 export function activate(ctx: ExtensionContext) {
@@ -42,6 +44,7 @@ export function activate(ctx: ExtensionContext) {
         ): vscode.CompletionItem[] | Thenable<vscode.CompletionItem[]> {
             const forms = [];
             const items = Object.keys(dict).map(k => {
+                // k = k.replace(punctWordBoundary, "");
                 const v = dict[k];
 
                 const ci = new vscode.CompletionItem(v.root);
@@ -93,7 +96,7 @@ export function activate(ctx: ExtensionContext) {
 
     vscode.languages.registerHoverProvider("plaintext", {
         provideHover(document, position, token) {
-            const w = currentWord(document, position);
+            const w = currentWord(document, position).replace(punctWordBoundary, "");
             const entry = dict[w];
             if (entry !== undefined) {
                 let hover = `**${entry.root}** [_${entry.partOfSpeech}_]: ${entry.definition}\n\n`;
